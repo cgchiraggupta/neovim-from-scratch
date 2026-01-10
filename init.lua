@@ -4,20 +4,48 @@ vim.cmd("set tabstop=2")
 vim.cmd("set softtabstop=2")
 vim.cmd("set shiftwidth=2")
 
+-- Bootstrap Lazy.nvim
 local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
-if not vim.loop.fs_stat(lazypath) then
+if not (vim.uv or vim.loop).fs_stat(lazypath) then
+  local lazyrepo = "https://github.com/folke/lazy.nvim.git"
   vim.fn.system({
     "git",
     "clone",
     "--filter=blob:none",
-    "https://github.com/folke/lazy.nvim.git",
     "--branch=stable", -- latest stable release
+    lazyrepo,
     lazypath,
   })
 end
 vim.opt.rtp:prepend(lazypath)
+
+-- Configure Neovim
 vim.opt.termguicolors = true
-require("lazy").setup("plugins")
+
+-- Setup plugins with better error handling
+local ok, err = pcall(require, "lazy")
+if not ok then
+  vim.notify("Failed to load lazy.nvim: " .. err, vim.log.levels.ERROR)
+  return
+end
+
+require("lazy").setup("plugins", {
+  -- Configure lazy.nvim for better macOS compatibility
+  performance = {
+    rtp = {
+      disabled_plugins = {
+        "gzip",
+        "matchit",
+        "matchparen",
+        "netrwPlugin",
+        "tarPlugin",
+        "tohtml",
+        "tutor",
+        "zipPlugin",
+      },
+    },
+  },
+})
 vim.opt.swapfile = false
 vim.wo.relativenumber = true
 
@@ -39,14 +67,50 @@ vim.api.nvim_set_keymap('n','<M-left>',':vertical resize -2<CR>',{ noremap = tru
 
 vim.api.nvim_set_keymap('n', '<C-Up>', ':resize +2<CR>', { noremap = true, silent = true })
 vim.api.nvim_set_keymap('n', '<C-Down>', ':resize -2<CR>', { noremap = true, silent = true })
-vim.opt.clipboard = "unnamedplus"
+-- Set clipboard for macOS compatibility
+if vim.fn.has('macunix') == 1 then
+  vim.opt.clipboard = "unnamed"
+else
+  vim.opt.clipboard = "unnamedplus"
+end
 -- to have persistent undo
 vim.opt.undofile = true       -- Turn on persistent undo
-vim.opt.undodir = vim.fn.stdpath('config') .. '/undo'  -- Set the undo directory
+local undo_dir = vim.fn.stdpath('config') .. '/undo'
+-- Create undo directory if it doesn't exist
+if vim.fn.isdirectory(undo_dir) == 0 then
+  vim.fn.mkdir(undo_dir, 'p')
+end
+vim.opt.undodir = undo_dir  -- Set the undo directory
 --fold settings
 vim.opt.foldmethod = "indent"
 vim.opt.foldenable = true
 vim.opt.foldlevel = 99
 vim.opt.foldlevelstart = 99 -- Open all folds by default
 vim.opt.foldminlines = 1    -- Ensures even small indents fold
+
+-- macOS specific settings
+if vim.fn.has('macunix') == 1 then
+  -- Fix for macOS key repeat
+  vim.opt.ttimeoutlen = 50
+  
+  -- Better mouse support on macOS
+  vim.opt.mouse = "a"
+  
+  -- Prevent issues with file watchers on macOS
+  vim.opt.fsync = true
+  
+  -- Fix potential issues with file permissions
+  vim.opt.backup = false
+  vim.opt.writebackup = false
+end
+
+-- Error handling for plugin loading
+vim.api.nvim_create_autocmd("User", {
+  pattern = "LazyLoad",
+  callback = function(event)
+    vim.schedule(function()
+      -- Add any post-load configuration here if needed
+    end)
+  end,
+})
 
